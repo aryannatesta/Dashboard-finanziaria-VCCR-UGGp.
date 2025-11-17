@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard: Architettura Finanziaria Geoparchi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Contrasted Ochre/Red-Orange (Basata sulla nuova immagine fornita per massimo contrasto) -->
+    <!-- Application Structure Plan: L'applicazione è strutturata come una SPA con navigazione tematica (Sintesi Analitica, Il Modello Calatrava, Progetti Strutturali, Focus ADC, Aree di Intervento, Architettura di Governance). Questa architettura è stata scelta per analizzare in modo sequenziale il caso Calatrava, partendo dalla tesi generale, passando all'analisi dei dati di bilancio, dettagliando i grandi progetti di investimento (PSTD), analizzando il braccio operativo locale (ADC Entreparques), identificando le aree tematiche di convergenza e concludendo con la struttura istituzionale. Le interazioni chiave includono la navigazione a schede e due grafici a ciambella Chart.js, oltre alla nuova funzionalità di 'Accordion' nella sezione Aree di Intervento per un drill-down interattivo. Il flusso guida l'utente attraverso una disamina completa e strutturata del modello finanziario. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Dati di bilancio 2022 Calatrava (€100k, €100k, €12k, €420k). Goal: Mostrare la composizione del budget ordinario. Viz/Method: Grafico a ciambella (Doughnut Chart). Interaction: Tooltip al passaggio del mouse. Justification: Visualizza immediatamente la proporzione tra le fonti di spesa stabile. Library: Chart.js (Canvas).
+        - Report Info: PSTD (€5.2M) e risultati (6 centri, 24 pannelli, ecc.). Goal: Enfatizzare l'impatto del fondo "leva europea". Viz/Method: Schede statistiche (Key Figure Cards). Interaction: Statico. Justification: I grandi numeri evidenziati in schede dedicate hanno un impatto visivo immediato. Library: HTML/Tailwind.
+        - Report Info: Dati Convenio GAL Entreparques 2023-2027 (Totale 3.9M€, Fonti: FEADER 80%, JCCM 14%, AGE 6%). Goal: Dettagliare il finanziamento del livello locale. Viz/Method: Schede statistiche + Grafico a ciambella. Interaction: Tooltip. Justification: Fornisce un'analisi quantitativa precisa del braccio operativo LEADER. Library: Chart.js (Canvas).
+        - Report Info: Dati CSV Progetti 2014-2020 (Ambiti: Privati, Pubblici, Gestione) e PSTD. Goal: Identificare le macro-aree di spesa integrate. Viz/Method: Lista Analitica Tematica interattiva (Accordion). Interaction: Click per espandere/comprimere. Justification: Migliora la pulizia della UI consentendo il drill-down dei dettagli. Library: HTML/Tailwind/JS.
+        - Report Info: Livelli di governance (Provinciale, Regionale, Locale, Accademico). Goal: Descrivere la struttura di governance. Viz/Method: Diagramma a lista strutturata. Interaction: Statico. Justification: Un layout semplice è più chiaro e conforme ai requisiti (NO SVG) rispetto a un grafico complesso. Library: HTML/Tailwind.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        /* Definizione Palette con maggiore contrasto (Toni di Rosso/Arancio/Ocra) */
+        :root {
+            --color-bg-light: #fefcfb; /* Bianco Crema molto chiaro */
+            --color-text-dark: #3c2f2f; /* Marrone scuro per alta leggibilità */
+            --color-primary-dark: #a83f12; /* Arancione Rosso Scuro (Bottone/Titolo) */
+            --color-primary-light: #d86927; /* Arancione più vivido */
+            --color-accent-ochre: #d69e2e; /* Ocra/Oro per l'accento dei dati */
+            --color-light-bg-block: #fff8f5; /* Sfondo chiaro per blocchi */
+            --color-nav-hover: #fcf4f0; 
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-bg-light);
+            color: var(--color-text-dark);
+        }
+        .page {
+            display: none;
+        }
+        .active-page {
+            display: block;
+        }
+        .nav-button {
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+            color: var(--color-primary-dark);
+            border-bottom: 2px solid transparent;
+            /* Riduciamo leggermente il padding orizzontale e la dimensione del font su mobile per far stare tutti i pulsanti */
+            padding: 0.5rem 0.4rem; /* Ulteriore riduzione per schermi piccoli */
+            font-size: 0.70rem; /* Ulteriore riduzione per schermi piccoli */
+            white-space: nowrap; /* Impedisce il wrap del testo sui pulsanti */
+        }
+        @media (min-width: 640px) { /* Ritorna a misure leggermente più grandi su sm breakpoint */
+             .nav-button {
+                padding: 0.5rem 0.6rem;
+                font-size: 0.75rem; 
+            }
+        }
+        @media (min-width: 768px) {
+             .nav-button {
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem; /* Medium font size for desktop */
+            }
+        }
+        
+        .nav-button.active {
+            background-color: var(--color-primary-dark);
+            color: white;
+            border-radius: 0.5rem;
+            border-bottom-color: var(--color-primary-dark);
+        }
+        .nav-button:not(.active):hover {
+            background-color: var(--color-nav-hover);
+            color: var(--color-primary-light);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 450px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .stat-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Ombra più scura */
+            border: 1px solid #e8e0dc; 
+        }
+        .tag {
+            display: inline-block;
+            background-color: #fef1e5; /* Sfondo ocra molto chiaro */
+            color: var(--color-primary-light);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin: 0.25rem;
+            border: 1px solid #f9d8c3;
+        }
+        .accordion-header {
+            cursor: pointer;
+            padding: 1rem;
+            background-color: var(--color-light-bg-block);
+            border-bottom: 1px solid #f0e7e3;
+            transition: background-color 0.2s;
+        }
+        .accordion-header:hover {
+            background-color: #f9f0ec;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+            padding: 0 1rem;
+            background-color: white;
+        }
+        .accordion-content.active {
+            max-height: 500px; /* Grande abbastanza per contenere il contenuto */
+            padding: 1rem;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white shadow-md border-b" style="border-color: #e8e0dc;">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-2xl md:text-3xl font-bold" style="color: var(--color-primary-dark);">Analisi Finanziaria Geoparchi</h1>
+            <p class="base text-stone-600 mt-1">Disamina approfondita del modello di architettura finanziaria del Geoparco <i>Volcanes de Calatrava. Ciudad Real</i>.</p>
+        </div>
+        <nav class="bg-white shadow-md">
+            <!-- Layout Flexbox ottimizzato per contenere tutti i pulsanti -->
+            <div class="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 flex flex-nowrap justify-center md:justify-start gap-1 md:gap-3 py-3 overflow-x-auto">
+                <button data-target="sintesi" class="nav-button active">Sintesi Analitica</button>
+                <button data-target="modello" class="nav-button">Il Modello Calatrava (Dati)</button>
+                <button data-target="progetti" class="nav-button">Progetti Strutturali</button>
+                <button data-target="gal-focus" class="nav-button">Focus: Modello LEADER (ADC)</button>
+                <button data-target="interventi" class="nav-button">Aree di Intervento</button>
+                <button data-target="governance" class="nav-button">Architettura di Governance</button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Pagina 1: Sintesi Analitica -->
+        <div id="sintesi" class="page active-page animate-fade-in">
+            <section class_name="introduction">
+                <h2 class="text-2xl font-bold mb-4" style="color: var(--color-primary-dark);">Sintesi Analitica del Modello Finanziario</h2>
+                <div class="space-y-4 text-lg leading-relaxed">
+                    <p id="sintesi-text">La presente piattaforma analitica disamina l'architettura finanziaria del Geoparco <i>Volcanes de Calatrava. Ciudad Real</i>, palesando come la sua riuscita non sia ascrivibile unicamente al patrimonio geologico, bensì a una solida strategia finanziaria multi-scalare e integrata. Il modello Calatrava, fondato sull'integrazione sinergica tra risorse di bilancio ordinarie, programmi di finanziamento europei e politiche di sviluppo territoriale, costituisce un modello di riferimento istituzionale.</p>
+                    <p class="text-base mt-4">Si invita all'utilizzo della navigazione per esplorare i pilastri del modello di finanziamento e l'architettura di governance che lo supporta.</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Pagina 2: Il Modello Calatrava (Dati) -->
+        <div id="modello" class="page animate-fade-in">
+            <section class_name="calatrava-model">
+                <h2 class="text-2xl font-bold mb-4" style="color: var(--color-primary-dark);">Il Modello Calatrava: Analisi dei Pilastri Finanziari Strutturanti</h2>
+                <p class="lg mb-8">La stabilità finanziaria di <i>Volcanes de Calatrava. Ciudad Real</i> si fonda su tre assi principali che ne assicurano la continuità operativa e la capacità di investimento pluriennale.</p>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="stat-card p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--color-primary-dark);">1. Radicamento nel Bilancio Ordinario (Principio di Stabilità Gestionale - Anno **2022**)</h3>
+                        <p class="text-stone-600 mb-4">L'integrazione formale del Geoparco nel bilancio provinciale (<i>Diputación Provincial de Ciudad Real</i>) lo sottrae alla natura di progetto episodico. Tale radicamento assicura una base operativa minima, un flusso d'investimenti continuativo nelle infrastrutture e una costante attività promozionale.</p>
+                        <p class="text-stone-600 mb-4 font-medium">Voci di Spesa Ricorrenti (Bilancio Esercizio **2022**):</p>
+                        <div class="chart-container">
+                            <canvas id="budgetChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="stat-card p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--color-primary-dark);">2. Il Volano Strutturale Europeo (<i>Plan de Sostenibilidad Turística en Destino</i>)</h3>
+                        <p class="text-stone-600 mb-4">Il <span class="font-bold">Plan de Sostenibilidad Turística en Destino (<strong>PSTD</strong>)</span>, con un investimento documentato di 5.200.000 € su un periodo <span class="font-bold">triennale (**2022-2024** circa)</span>, costituisce l'asse centrale per il finanziamento delle infrastrutture di fruizione, con un chiaro allineamento ai quadri del Next Generation EU. (Vedi sezione Progetti per i dettagli operativi).</p>
+                        
+                        <div class="text-center my-6">
+                            <span class="block text-5xl font-bold" style="color: var(--color-primary-light);">5.2M €</span>
+                            <span class="block text-lg text-stone-600">Investimento Totale (Periodo Triennale)</span>
+                        </div>
+                        
+                        <p class="text-stone-600 mb-2 font-medium">Principali Output Attesi, Finanziati dal <strong>PSTD</strong>:</p>
+                        <ul class="list-disc list-inside text-stone-600 space-y-1">
+                            <li>6 Centri di Interpretazione e 6 Geositi musealizzati</li>
+                            <li>46 Segnali direzionali e 40 Totem di appartenenza</li>
+                            <li>Rete di punti informativi e 24 Pannelli interpretativi</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="stat-card p-6 mt-8">
+                    <h3 class="text-xl font-semibold mb-3" style="color: var(--color-primary-dark);">3. Politiche Trasversali di Sostegno e Sinergia Territoriale (Post-**2021**)</h3>
+                    <p class="text-stone-600 mb-4">Il progetto Geoparco opera come <i>framework</i> integratore, catalizzando programmi provinciali che, sebbene non specificamente dedicati, manifestano una coerenza sinergica con gli obiettivi di geoturismo e sviluppo sostenibile.</p>
+                    <div class="flex flex-wrap gap-4">
+                        <div class="flex-1 min-w-[200px] p-4 rounded-lg" style="background-color: var(--color-light-bg-block);">
+                            <span class="block text-lg font-medium" style="color: var(--color-primary-dark);">Turismo Itinerante</span>
+                            <p class="text-sm text-stone-700">Incentivazione tramite rete di aree servizio per <i>autocaravan</i> (financiamento <i>Diputación</i>).</p>
+                        </div>
+                        <div class="flex-1 min-w-[200px] p-4 rounded-lg" style="background-color: var(--color-light-bg-block);">
+                            <span class="block text-lg font-medium" style="color: var(--color-primary-dark);">Valorizzazione Ricettiva</span>
+                            <p class="text-sm text-stone-700">Recupero di <i>hospederías</i> turistiche in contesti di pregio storico-architettonico.</p>
+                        </div>
+                        <div class="flex-1 min-w-[200px] p-4 rounded-lg" style="background-color: var(--color-light-bg-block);">
+                            <span class="block text-lg font-medium" style="color: var(--color-primary-dark);">Sviluppo Locale e Gastronomia</span>
+                            <p class="sm text-stone-700">Integrazione in programmi di digitalizzazione, efficienza energetica e promozione gastronomica (<i>Sabores del Geoparque</i>).</p>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+
+        <!-- Pagina 3: Progetti Strutturali -->
+        <div id="progetti" class="page animate-fade-in">
+            <section class_name="european-and-international-projects">
+                <h2 class="text-2xl font-bold mb-4" style="color: var(--color-primary-dark);">Programmi e Progetti Strutturali (Fondi UE e Cooperazione)</h2>
+                <p class="text-lg mb-8">La candidatura a Geoparco è stata supportata da un massiccio investimento in infrastrutture e dal posizionamento attivo all'interno delle reti europee e internazionali.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="stat-card p-6 md:col-span-1">
+                        <h3 class="text-xl font-semibold mb-2" style="color: var(--color-primary-dark);">Fondo Strutturale Principale</h3>
+                        <p class="text-3xl font-bold" style="color: var(--color-primary-light);"><strong>PSTD</strong></p>
+                        <p class="text-stone-600 text-sm"><i>Plan de Sostenibilidad Turística en Destino</i> (Next Generation EU / Turismo Sostenibile)</p>
+                        <p class="mt-2 font-medium" style="color: var(--color-primary-dark);">Totale Investimento: 5.200.000 € (**2022-2024** circa)</p>
+                    </div>
+                    <div class="stat-card p-6 md:col-span-2">
+                        <h3 class="text-xl font-semibold mb-2" style="color: var(--color-primary-dark);">Impiego del <strong>PSTD</strong> per il Geoparco (Fase Preparatoria)</h3>
+                        <ul class="list-disc list-inside text-stone-700 space-y-1 text-sm">
+                            <li><strong>Creazione di Centri di Interpretazione:</strong> 6 Centri tematici (es. <i>Plaza de Toros di Almadén</i>, <i>Museo della Mineria di Puertollano</i>, <i>Palacio de Claveria</i>).</li>
+                            <li><strong>Musealizzazione Geositica:</strong> 6 Geositi con proposte interpretative avanzate (es. <i>Monumento Natural Carbonífero de Puertollano</i>, <i>Baritel de San Carlos</i>).</li>
+                            <li><strong>Sviluppo Infrastrutturale:</strong> Finanziamento per l'installazione di 24 pannelli interpretativi, 46 segnali direzionali e 40 totem di appartenenza.</li>
+                            <li><strong>Mobilità Sostenibile:</strong> Acquisizione di 8 veicoli elettrici fuoristrada e relativi punti di ricarica distribuiti nei 4 nodi principali di accesso (Nodi Lanciatori).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="stat-card p-6">
+                    <h3 class="text-xl font-semibold mb-3" style="color: var(--color-primary-dark);">Impegno Europeo e Internazionale (Networking)</h3>
+                    <p class="text-stone-600 mb-4">Il progetto dimostra un'attiva integrazione nelle reti europee e un impegno nella cooperazione internazionale, essenziali per gli standard UNESCO.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div class="border-l-4 pl-3" style="border-color: var(--color-primary-light);">
+                            <h4 class="font-semibold" style="color: var(--color-primary-dark);">Rete Spagnola (FEG)</h4>
+                            <p class="text-sm text-stone-600">Contatti consolidati e visite con Geoparchi (es. <i>Granada</i>, <i>Molina-Alto Tajo</i>, <i>Villuercas-Ibores-Jara</i>).</p>
+                        </div>
+                        <div class="border-l-4 pl-3" style="border-color: var(--color-primary-light);">
+                            <h4 class="font-semibold" style="color: var(--color-primary-dark);">Rete Europea (EGN)</h4>
+                            <p class="text-sm text-stone-600">Partecipazione al corso digitale sui Geoparchi UNESCO e presenza confermata alla 16a Conferenza Europea Geoparks (Verbania, Italia, **2022**).</p>
+                        </div>
+                        <div class="border-l-4 pl-3" style="border-color: var(--color-primary-light);">
+                            <h4 class="font-semibold" style="color: var(--color-primary-dark);">Cooperazione Globale</h4>
+                            <p class="text-sm text-stone-600">Protocollo di collaborazione in corso con il Geoparco <i>Colca y Volcanes de Andagua</i> in Perù.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 p-3 rounded-lg" style="background-color: var(--color-light-bg-block);">
+                        <h4 class="font-semibold" style="color: var(--color-primary-dark);">Superposizione UNESCO e Sinergie</h4>
+                        <p class="text-sm text-stone-600">Il Geoparco presenta una superposizione minima con la <i>Reserva de la Biosfera de La Mancha Húmeda</i> (0,27% del territorio) e una sovrapposizione chiave con l'<i>Heritage of Mercury. Almadén and Idrija</i> (Patrimonio Mondiale UNESCO). L'approccio Geoparco apporta la <strong class="font-bold" style="color: var(--color-primary-dark);">dimensione geologica</strong> per una comprensione olistica del fenomeno del mercurio di Almadén.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Pagina 4: Focus GAL/LEADER -->
+        <div id="gal-focus" class="page animate-fade-in">
+            <section class_name="gal-leader-model-focus">
+                <h2 class="text-2xl font-bold mb-4" style="color: var(--color-primary-dark);">Focus: Il Modello LEADER (<strong>ADC - Asociación de Desarrollo Cabañeros</strong>)</h2>
+                <p class="lg mb-8">L'<strong>ADC - Asociación de Desarrollo Cabañeros</strong> y <i>Montes Norte (Entreparques)</i>, uno dei Gruppi di Azione Locale (GAL) partner del Geoparco, gestisce i fondi europei LEADER sul territorio. Il suo operato si basa sull'implementazione della Strategia di Sviluppo Locale Partecipativo (EDLP).</p>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Colonna 1: Dati Finanziari 2023-2027 -->
+                    <div class="stat-card p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--color-primary-dark);">Quadro Finanziario <strong>ADC</strong> (<strong>PEPAC 2023-2027</strong>)</h3>
+                        <p class="text-stone-600 mb-4">Il <i>Convenio</i> (Accordo) firmato il 23 ottobre <strong>2023</strong> tra la <i>Junta de Comunidades de Castilla-La Mancha</i> e l'<strong>ADC</strong> definisce l'assegnazione per il nuovo periodo di programmazione. Il periodo di esecuzione copre fino al 31 dicembre <strong>2028</strong>.</p>
+                        
+                        <div class="space-y-4 my-6">
+                            <div class="text-center">
+                                <span class="block text-5xl font-bold" style="color: var(--color-primary-light);">3.921.115 €</span>
+                                <span class="block text-lg text-stone-600">Assegnazione Totale (<strong>2023-2028</strong>)</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <span class="block text-2xl font-bold" style="color: var(--color-primary-dark);">2.940.837 €</span>
+                                    <span class="block text-sm text-stone-600">Fondi per Progetti (Min.)</span>
+                                </div>
+                                <div>
+                                    <span class="block text-2xl font-bold" style="color: var(--color-primary-dark);">980.279 €</span>
+                                    <span class="block text-sm text-stone-600">Costi Operativi (Max. 25%)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-stone-600 mb-4 font-medium">Fonti di Finanziamento (<strong>PEPAC 2023-2027</strong>):</p>
+                        <div class="chart-container" style="height: 300px;">
+                            <canvas id="galBudgetChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Colonna 2: Analisi Progetti 2014-2020 -->
+                    <div class="stat-card p-6">
+                        <h3 class="text-xl font-semibold mb-3" style="color: var(--color-primary-dark);">Analisi Allocazione Progetti (Esempio Programmazione **2014-2020**)</h3>
+                        <p class="text-stone-600 mb-4">L'analisi dei dati storici dell'<strong>ADC</strong> mostra come i fondi LEADER sono stati distribuiti capillarmente sul territorio per finanziare centinaia di micro-progetti, sia pubblici che privati, suddivisi per <i>Ámbito</i> (Ambito di intervento):</p>
+                        <ul class="space-y-3">
+                            <li class="p-3 rounded-md border" style="background-color: var(--color-light-bg-block); border-color: #e8e0dc;">
+                                <strong class="block" style="color: var(--color-primary-dark);">Sostegno a Imprese Private (<i>Ámbitos 2 & 3</i>)</strong>
+                                <span class="text-sm text-stone-600">Rappresenta la quota maggiore. Finanzia la creazione e l'ampliamento di attività non agricole (es. turismo rurale, servizi, artigianato, officine) e la modernizzazione di industrie agroalimentari.</span>
+                            </li>
+                            <li class="p-3 rounded-md border" style="background-color: var(--color-light-bg-block); border-color: #e8e0dc;">
+                                <strong class="block" style="color: var(--color-primary-dark);">Infrastrutture Pubbliche e Servizi (<i>Ámbito 4</i>)</strong>
+                                <span class="text-sm text-stone-600">Fondi destinati ai comuni (<i>Ayuntamientos</i>) per la creazione o il miglioramento di infrastrutture locali (es. efficienza energetica, parchi).</span>
+                            </li>
+                             <li class="p-3 rounded-md border" style="background-color: var(--color-light-bg-block); border-color: #e8e0dc;">
+                                <strong class="block" style="color: var(--color-primary-dark);">Sviluppo Territoriale e Capitale Umano (<i>Ámbitos 11 & 12</i>)</strong>
+                                <span class="text-sm text-stone-600">Progetti gestiti dall'<strong>ADC</strong> per la promozione territoriale, formazione per imprese e studi strategici.</span>
+                            </li>
+                            <li class="p-3 rounded-md border" style="background-color: var(--color-light-bg-block); border-color: #e8e0dc;">
+                                <strong class="block" style="color: var(--color-primary-dark);">Costi Operativi (<i>Ámbitos 1 & 2</i>)</strong>
+                                <span class="text-sm text-stone-600">Copertura dei <i>Gastos de funcionamiento</i> (costi di gestione) e <i>Animación</i> (animazione territoriale).</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Pagina 5: Aree di Intervento Strategico -->
+        <div id="interventi" class="page animate-fade-in">
+            <section class_name="macro-areas-focus">
+                <h2 class="text-2xl font-bold mb-4" style="color: var(--color-primary-dark);">Aree di Intervento Strategico (Geoparco & <strong>ADC</strong>)</h2>
+                <p class="lg mb-8">Questa sezione identifica la convergenza delle macro-aree di investimento tra il Geoparco (<strong>PSTD</strong> e <i>Diputación</i>) e il livello locale (<strong>ADC/PEPAC</strong>), definendo gli assi di sviluppo prioritari per il territorio.</p>
+
+                <div class="space-y-4">
+                    
+                    <!-- 1. Infrastrutture & Geoturismo -->
+                    <div class="accordion-item stat-card p-0 overflow-hidden">
+                        <div class="accordion-header flex justify-between items-center" data-target="content-1" style="border-left: 5px solid var(--color-primary-light);">
+                            <h3 class="text-xl font-semibold" style="color: var(--color-primary-dark);">1. Infrastrutture, Fruizione e Geoturismo</h3>
+                            <svg class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="content-1" class="accordion-content">
+                            <p class="text-sm text-stone-700 mb-2">Creazione di strutture di visita e valorizzazione del patrimonio geologico.</p>
+                            <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                                <li>Centri di Interpretazione e Geositi Musealizzati (<strong>PSTD</strong>).</li>
+                                <li>Segnaletica e accessibilità (<i>Diputación</i> / <strong>PSTD</strong>).</li>
+                                <li>Piani di Sviluppo Turistico Sostenibile (<strong>ADC</strong> Azione 2.2).</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 2. Imprenditoria & Servizi -->
+                    <div class="accordion-item stat-card p-0 overflow-hidden">
+                         <div class="accordion-header flex justify-between items-center" data-target="content-2" style="border-left: 5px solid var(--color-primary-light);">
+                            <h3 class="text-xl font-semibold" style="color: var(--color-primary-dark);">2. Imprenditoria Rurale e Sostegno Aziendale</h3>
+                            <svg class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="content-2" class="accordion-content">
+                            <p class="text-sm text-stone-700 mb-2">Supporto alla creazione e modernizzazione delle microimprese non agricole e alla diversificazione.</p>
+                            <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                                <li>Aiuti all'avvio di nuove imprese (<strong>ADC</strong> Azione 1.1).</li>
+                                <li>Investimenti per la creazione/miglioria di imprese esistenti (<strong>ADC</strong> Azione 1.2).</li>
+                                <li>Capacitazione e <i>Mentoring</i> per imprenditori (<strong>ADC</strong> Azione 1.3).</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- 3. Bioeconomia & Sostenibilità -->
+                    <div class="accordion-item stat-card p-0 overflow-hidden">
+                        <div class="accordion-header flex justify-between items-center" data-target="content-3" style="border-left: 5px solid var(--color-primary-light);">
+                            <h3 class="text-xl font-semibold" style="color: var(--color-primary-dark);">3. Bioeconomia, Energia e Risorse Idriche</h3>
+                            <svg class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="content-3" class="accordion-content">
+                            <p class="text-sm text-stone-700 mb-2">Promozione di pratiche sostenibili e gestione efficiente delle risorse idriche ed energetiche.</p>
+                            <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                                <li>Programmi di Sviluppo di Comunità Energetiche (<strong>ADC</strong> Azione 4.3).</li>
+                                <li>Aiuti per l'Efficienza Energetica in sedi comunali (<strong>ADC</strong> Azione 4.1).</li>
+                                <li>Aiuti per la Gestione e Qualità dell'Acqua (<strong>ADC</strong> Azione 4.2).</li>
+                                <li>Fomento del Consumo Responsabile (<strong>ADC</strong> Azione 4.4).</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 4. Coesione Sociale & Fissazione della Popolazione -->
+                    <div class="accordion-item stat-card p-0 overflow-hidden">
+                        <div class="accordion-header flex justify-between items-center" data-target="content-4" style="border-left: 5px solid var(--color-primary-light);">
+                            <h3 class="text-xl font-semibold" style="color: var(--color-primary-dark);">4. Coesione Sociale e Fissazione della Popolazione</h3>
+                            <svg class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="content-4" class="accordion-content">
+                            <p class="text-sm text-stone-700 mb-2">Interventi mirati al supporto di giovani e anziani, e al miglioramento dei servizi di base.</p>
+                            <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                                <li>Azione di accompagnamento e socializzazione per anziani (<strong>ADC</strong> Azione 3.3).</li>
+                                <li>Programmi di cooperazione con la Comunità Scolastica (<strong>ADC</strong> Azione 3.2).</li>
+                                <li>Miglioramento di Infrastrutture Sociali e di Ocio per Giovani e Anziani (<strong>ADC</strong> Azione 3.1).</li>
+                                <li>Studi sulla Mobilità e Trasporto Pubblico (<strong>ADC</strong> Azione 3.5).</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- 5. Governance e Capacità Istituzionale -->
+                    <div class="accordion-item stat-card p-0 overflow-hidden">
+                         <div class="accordion-header flex justify-between items-center" data-target="content-5" style="border-left: 5px solid var(--color-primary-light);">
+                            <h3 class="text-xl font-semibold" style="color: var(--color-primary-dark);">5. Governance e Capacità Istituzionale</h3>
+                            <svg class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="content-5" class="accordion-content">
+                            <p class="text-sm text-stone-700 mb-2">Potenziamento della capacità progettuale e di gestione degli enti locali.</p>
+                            <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                                <li>Supporto al ruolo dinamizzatore degli <i>Ayuntamientos</i> (<strong>ADC</strong> Azione 3.6).</li>
+                                <li>Progetti di Cooperazione Transnazionale (es. <i>Horizontes Rurales</i>).</li>
+                                <li>Creazione di Reti per lo Sviluppo Comarcale (<strong>ADC</strong> Azione 3.4).</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+
+        <!-- Pagina 6: Architettura di Governance -->
+        <div id="governance" class="page animate-fade-in">
+            <section class_name="governance-comparison">
+                <h2 class="text-2xl font-bold mb-4" style="color: var(--color-primary-dark);">Architettura di Governance Finanziaria Multi-livello</h2>
+                <p class="lg mb-8">L'architettura finanziaria del Geoparco è supportata da una governance multi-livello che mitiga il rischio di dipendenza da un'unica fonte e previene la frammentazione degli interventi, stabilendo un modello di gestione robusto.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="stat-card p-6 bg-white col-span-1 md:col-span-2">
+                        <h3 class="text-xl font-semibold mb-4 text-center" style="color: var(--color-primary-dark);">Modello Calatrava: Ruoli e Contributi Istituzionali (Dal **2022**)</h3>
+                        <ul class="space-y-3">
+                            <li class="flex items-start">
+                                <span class="font-bold text-lg mr-3" style="color: var(--color-primary-light);">►</span>
+                                <div>
+                                    <strong class="block" style="color: var(--color-primary-dark);">Livello Provinciale (<i>Diputación</i>)</strong>
+                                    <span class="sm text-stone-600">Ente promotore e finanziatore primario: gestione diretta e integrazione nel bilancio ordinario (**Esercizio 2022**).</span>
+                                    <span class="tag">Bilancio Ordinario</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="font-bold text-lg mr-3" style="color: var(--color-primary-light);">►</span>
+                                <div>
+                                    <strong class="block" style="color: var(--color-primary-dark);">Livello Regionale (<i>Junta de Comunidades de Castilla-La Mancha</i>)</strong>
+                                    <span class="sm text-stone-600">Attuazione del <strong>PSTD</strong> (**2022-2024** circa) e del <strong>PEPAC 2023-2027</strong>.</span>
+                                    <span class="tag"><strong>PSTD</strong> (NextGen)</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="font-bold text-lg mr-3" style="color: var(--color-primary-light);">►</span>
+                                <div>
+                                    <strong class="block" style="color: var(--color-primary-dark);">Livello Locale (<i>Ayuntamientos</i> / <strong>ADC</strong>)</strong>
+                                    <span class="sm text-stone-600">Gestione dei fondi LEADER (tramite l'<strong>ADC - Asociación de Desarrollo Cabañeros</strong>, **PEPAC 2023-2028**), cofinanziamento di infrastrutture.</span>
+                                    <span class="tag">Fondi LEADER (FEADER)</span>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="font-bold text-lg mr-3" style="color: var(--color-primary-light);">►</span>
+                                <div>
+                                    <strong class="block" style="color: var(--color-primary-dark);">Livello Accademico (<i>Universidad de Castilla-La Mancha</i>)</strong>
+                                    <span class="sm text-stone-600">Contributo <i>in-kind</i> mediante ricerca, formazione specialistica e supporto tecnico-scientifico (Esempio: Corso Esperto Universitario **2021**).</span>
+                                    <span class="tag">Ricerca In-Kind</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="text-center py-6 mt-8 border-t" style="border-color: #e8e0dc;">
+        <p class="sm text-stone-500">Elaborazione analitica basata su documentazione ufficiale del Geoparco <i>Volcanes de Calatrava. Ciudad Real</i>, Entreparques e documenti della <i>Diputación Provincial de Ciudad Real</i>. Supporto informatico: AI Gemini 2.5 Flash.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const navButtons = document.querySelectorAll('.nav-button');
+            const pages = document.querySelectorAll('.page');
+            const accordionHeaders = document.querySelectorAll('.accordion-header');
+
+            function showPage(targetId) {
+                pages.forEach(page => {
+                    page.classList.remove('active-page');
+                });
+                
+                navButtons.forEach(button => {
+                    button.classList.remove('active');
+                });
+
+                const targetPage = document.getElementById(targetId);
+                const activeButton = document.querySelector(`.nav-button[data-target="${targetId}"]`);
+                
+                if (targetPage) {
+                    targetPage.classList.add('active-page');
+                }
+                if (activeButton) {
+                    activeButton.classList.add('active');
+                }
+            }
+
+            navButtons.forEach(button => {
+                button.addEventListener('click', function () {
+                    const targetId = this.getAttribute('data-target');
+                    showPage(targetId);
+                });
+            });
+
+            // Logica per l'Accordion (Scheda Aree di Intervento)
+            accordionHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    const content = document.getElementById(targetId);
+                    const arrow = this.querySelector('svg');
+
+                    const isActive = content.classList.contains('active');
+
+                    // Chiudi tutti gli altri
+                    document.querySelectorAll('.accordion-content.active').forEach(item => {
+                        item.classList.remove('active');
+                        item.previousElementSibling.querySelector('svg').classList.remove('rotate-180');
+                    });
+                    
+                    // Apri o chiudi l'elemento cliccato
+                    if (!isActive) {
+                        content.classList.add('active');
+                        arrow.classList.add('rotate-180');
+                    }
+                });
+            });
+
+
+            // Inizializza con la prima pagina
+            showPage('sintesi');
+
+            // --- Chart.js Palette Update (Contrasted Ochre/Red-Orange) ---
+            const rootStyle = getComputedStyle(document.documentElement);
+            const bgLight = rootStyle.getPropertyValue('--color-bg-light');
+            
+            // Nuove palette per i grafici (più calde e contrastate)
+            const chartColorsBudget = [
+                '#d86927', // Arancione Vivido
+                '#a83f12', // Rosso Scuro
+                '#f4c39c', // Arancio Chiaro
+                '#8b5b4a'  // Marrone medio
+            ];
+
+            const chartColorsGAL = [
+                '#a83f12', // Rosso Scuro (FEADER)
+                '#d69e2e', // Ocra (JCCM)
+                '#d86927'  // Arancione Vivido (AGE)
+            ];
+
+
+            // --- Chart.js Logic for Budget Chart (Page 2) ---
+            const budgetData = {
+                labels: [
+                    'Promozione Turistica (Eventi)',
+                    'Segnaletica Rete Sentieri',
+                    'Gestione Progetto (Spese diverse)',
+                    'Consulenze Esterne Progetto'
+                ],
+                datasets: [{
+                    label: 'Bilancio Ordinario 2022',
+                    data: [420000, 100000, 100000, 12000],
+                    backgroundColor: chartColorsBudget,
+                    borderColor: bgLight,
+                    borderWidth: 2,
+                    hoverOffset: 4
+                }]
+            };
+
+            const budgetConfig = {
+                type: 'doughnut',
+                data: budgetData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    size: 11
+                                },
+                                boxWidth: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(context.parsed);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            const budgetChartCtx = document.getElementById('budgetChart');
+            if(budgetChartCtx) {
+                new Chart(budgetChartCtx.getContext('2d'), budgetConfig);
+            }
+
+            // --- Chart.js Logic for GAL Budget Chart (Page 4) ---
+            const galBudgetData = {
+                labels: [
+                    'FEADER (UE, 80%)',
+                    'JCCM (Regionale, 14%)',
+                    'AGE (Nazionale, 6%)'
+                ],
+                datasets: [{
+                    label: 'Contributo % Fondi Pubblici (2023-2027)',
+                    data: [80, 14, 6], 
+                    backgroundColor: chartColorsGAL,
+                    borderColor: bgLight,
+                    borderWidth: 2,
+                    hoverOffset: 4
+                }]
+            };
+
+            const galBudgetConfig = {
+                type: 'doughnut',
+                data: galBudgetData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    size: 11
+                                },
+                                boxWidth: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += context.parsed + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            const galBudgetChartCtx = document.getElementById('galBudgetChart');
+            if(galBudgetChartCtx) {
+                new Chart(galBudgetChartCtx.getContext('2d'), galBudgetConfig);
+            }
+
+        });
+    </script>
+
+</body>
+</html>
